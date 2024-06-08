@@ -14,32 +14,27 @@ def rawdata(request):
         data = json.loads(request.body)
         df = pd.DataFrame(data)
 
-        print("Data received successfully")
-        print(df)
-
         # Validate and format the data
         is_valid, error_message = formatAndValidateData(df)
         if not is_valid:
             return JsonResponse({"error": error_message}, status=400)
 
-        print("Data is valid")
-        print(df)
-
-        # Save data to database
         for _, row in df.iterrows():
-            RawData.objects.create(
-                date=row["date"],
-                invoice_number=row["invoice number"],
-                value=row["value"],
-                haircut_percent=row["haircut percent"],
-                daily_fee_percent=row["Daily fee percent"],
-                currency=row["currency"],
-                revenue_source=row["Revenue source"],
-                customer=row["customer"],
-                expected_payment_duration=row["Expected payment duration"],
-            )
-
-    print("Data saved successfully")
+            # Check if the record already exists
+            if not RawData.objects.filter(
+                invoice_number=row["invoice number"], customer=row["customer"]
+            ).exists():
+                RawData.objects.create(
+                    date=row["date"],
+                    invoice_number=row["invoice number"],
+                    value=row["value"],
+                    haircut_percent=row["haircut percent"],
+                    daily_fee_percent=row["Daily fee percent"],
+                    currency=row["currency"],
+                    revenue_source=row["Revenue source"],
+                    customer=row["customer"],
+                    expected_payment_duration=row["Expected payment duration"],
+                )
 
     # Get unique Revenue source types
     revenue_sources = RawData.objects.values_list(

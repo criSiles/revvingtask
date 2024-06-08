@@ -11,5 +11,10 @@ class RawData(models.Model):
     customer = models.CharField(max_length=100)
     expected_payment_duration = models.IntegerField()
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['invoice_number', 'customer'], name='unique_invoice_number_customer')
+        ]
+
     def __str__(self):
         return f"{self.customer} - {self.date} - {self.value}"
