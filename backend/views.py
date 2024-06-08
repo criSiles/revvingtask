@@ -6,6 +6,7 @@ from .models import RawData
 from django.db.models import Sum
 from datetime import datetime
 from django.apps import apps
+from decimal import Decimal
 
 
 @csrf_exempt
@@ -91,21 +92,91 @@ def formatAndValidateData(dataFrame):
     return True, ""
 
 
-def totalValues(request):
-    if request.method == "GET":
-        client = request.GET.get("client")
-        startdate = request.GET.get("startdate")
-        enddate = request.GET.get("enddate")
+exchange_rate_dict = {
+    ("USD", "EUR"): 0.85,
+    ("EUR", "USD"): 1.18,
+    # Add more exchange rates as needed
+}
+
+
+@csrf_exempt
+def convert_and_sum_values(dataFrame, target_currency, exchange_rate_dict):
+    advance_value = 0
+    total_fees = 0
+    # Convert values to target currency
+    for index, row in dataFrame.iterrows():
+        source_currency = row["currency"]
+        if source_currency != target_currency:
+            exchange_rate = exchange_rate_dict.get((source_currency, target_currency))
+            if exchange_rate:
+                dataFrame.at[index, "value"] = row["value"] * Decimal(
+                    str(exchange_rate)
+                )
+        advance_value += (
+            dataFrame.at[index, "value"] * dataFrame.at[index, "haircut_percent"] / 100
+        )
+        total_fees += (
+            dataFrame.at[index, "value"]
+            * dataFrame.at[index, "daily_fee_percent"]
+            * dataFrame.at[index, "expected_payment_duration"]
+            / 100
+        )
+
+    # Sum values
+    total_value = dataFrame["value"].sum()
+
+    # Round the values to 2 decimal places
+    total_value = round(total_value, 2)
+    advance_value = round(advance_value, 2)
+    total_fees = round(total_fees, 2)
+
+    return total_value, advance_value, total_fees
+
+
+@csrf_exempt
+def calculateRevenues(request):
+    if request.method == "POST":
+        #  Get parameters from the JSON request
+        data = json.loads(request.body)
+        revenue_source = data["revenue_source"]
+        startdate = data["startdate"]
+        enddate = data["enddate"]
+        target_currency = data["target_currency"]
 
         startdate = datetime.strptime(startdate, "%Y-%m-%d").date()
         enddate = datetime.strptime(enddate, "%Y-%m-%d").date()
 
         # Filter data
-        total_value = RawData.objects.filter(
-            customer=client, date__range=(startdate, enddate)
-        ).aggregate(Sum("value"))["value__sum"]
+        data = RawData.objects.filter(
+            revenue_source=revenue_source,
+            date__range=(startdate, enddate),
+        ).values(
+            "value",
+            "haircut_percent",
+            "daily_fee_percent",
+            "currency",
+            "expected_payment_duration",
+        )
 
-        return JsonResponse({"total_value": total_value})
+        dataFrame = pd.DataFrame.from_records(data)
+
+        # Check if the dataFrame is empty
+        if dataFrame.empty:
+            return JsonResponse(
+                {"error": "No data found for the given parameters"}, status=400
+            )
+
+        total_value, advance_value, total_fees = convert_and_sum_values(
+            dataFrame, target_currency, exchange_rate_dict
+        )
+
+        return JsonResponse(
+            {
+                "total_value": total_value,
+                "advance_value": advance_value,
+                "total_fees": total_fees,
+            }
+        )
 
 
 @csrf_exempt
