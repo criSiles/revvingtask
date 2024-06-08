@@ -3,7 +3,6 @@ import pandas as pd
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from .models import RawData
-from django.db.models import Sum
 from datetime import datetime
 from django.apps import apps
 from decimal import Decimal
@@ -62,6 +61,10 @@ def formatAndValidateData(dataFrame):
     if not all(col in dataFrame.columns for col in required_columns):
         return False, "Missing required columns"
 
+    # if value is not a number, cast it to float
+    if dataFrame["value"].dtype != "float64":
+        dataFrame["value"] = dataFrame["value"].astype(float)
+
     # Check if the dataFrame has any negative values
     if (dataFrame["value"] < 0).any():
         return False, "Negative values found in 'value' column"
@@ -72,9 +75,17 @@ def formatAndValidateData(dataFrame):
     except ValueError:
         return False, "Invalid date values found"
 
+    # Check if the dataFrame is not a number, cast it to float
+    if dataFrame["haircut percent"].dtype != "float64":
+        dataFrame["haircut percent"] = dataFrame["haircut percent"].astype(float)
+
     # Check if the dataFrame has any invalid haircut percent values
     if (dataFrame["haircut percent"] < 0).any():
         return False, "Negative values found in 'haircut percent' column"
+
+    # Check if the dataFrame is not a number, cast it to float
+    if dataFrame["Daily fee percent"].dtype != "float64":
+        dataFrame["Daily fee percent"] = dataFrame["Daily fee percent"].astype(float)
 
     # Check if the dataFrame has any invalid daily fee percent values
     if (dataFrame["Daily fee percent"] < 0).any():
@@ -84,6 +95,12 @@ def formatAndValidateData(dataFrame):
     valid_currencies = ["USD", "EUR", "GBP", "JPY", "CNY"]
     if not all(currency in valid_currencies for currency in dataFrame["currency"]):
         return False, "Invalid currency values found"
+
+    # Check if the expected payment duration is a number
+    if dataFrame["Expected payment duration"].dtype != "int64":
+        dataFrame["Expected payment duration"] = dataFrame[
+            "Expected payment duration"
+        ].astype(int)
 
     # Trim lead and trailing whitespaces from Revenue source and customer columns
     dataFrame["Revenue source"] = dataFrame["Revenue source"].str.strip()
