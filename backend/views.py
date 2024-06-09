@@ -112,6 +112,8 @@ def formatAndValidateData(dataFrame):
 exchange_rate_dict = {
     ("USD", "EUR"): 0.85,
     ("EUR", "USD"): 1.18,
+    ("USD", "GBP"): 0.73,
+    ("GBP", "USD"): 1.37,
     # Add more exchange rates as needed
 }
 
@@ -156,17 +158,17 @@ def calculateRevenues(request):
         #  Get parameters from the JSON request
         data = json.loads(request.body)
         revenue_source = data["revenue_source"]
-        startdate = data["startdate"]
-        enddate = data["enddate"]
+        start_date = data["start_date"]
+        end_date = data["end_date"]
         target_currency = data["target_currency"]
 
-        startdate = datetime.strptime(startdate, "%Y-%m-%d").date()
-        enddate = datetime.strptime(enddate, "%Y-%m-%d").date()
+        start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
+        end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
 
         # Filter data
         data = RawData.objects.filter(
             revenue_source=revenue_source,
-            date__range=(startdate, enddate),
+            date__range=(start_date, end_date),
         ).values(
             "value",
             "haircut_percent",
